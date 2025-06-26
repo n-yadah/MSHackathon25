@@ -2,6 +2,7 @@ from flask import Flask, request
 import requests
 import logging
 import openai
+from openai import OpenAI
 import os
 import json
 import datetime
@@ -15,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Load API keys
 GROUPME_BOT_ID = os.getenv("GROUPME_BOT_ID")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # File to store conversation history
 CHAT_LOG_FILE = "chat_log.json"
@@ -97,12 +98,12 @@ def extract_health_log_with_ai(user_message):
         {"role": "user", "content": user_message}
     ]
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=prompt,
             temperature=0
         )
-        content = response['choices'][0]['message']['content']
+        content = response.choices[0].message.content
         # Try to parse JSON from the AI's response
         data = None
         try:
@@ -121,11 +122,11 @@ def get_ai_response(user_message):
     ] + conversation_history[-5:]
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].message.content
         conversation_history.append({"role": "assistant", "content": reply})
         save_chat_log()
         return reply
