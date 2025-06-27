@@ -1,8 +1,6 @@
 from flask import Flask, request
 import requests
 import logging
-import openai
-from openai import OpenAI
 import os
 import json
 import datetime
@@ -16,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Load API keys
 GROUPME_BOT_ID = os.getenv("GROUPME_BOT_ID")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Removed OpenAI client initialization
 
 # File to store conversation history
 CHAT_LOG_FILE = "chat_log.json"
@@ -87,52 +85,9 @@ def get_resource_tip():
     ]
     return tips[datetime.datetime.now().second % len(tips)]
 
-def extract_health_log_with_ai(user_message):
-    prompt = [
-        {"role": "system", "content": (
-            "You are an assistant that extracts structured health log data from user messages. "
-            "If the message contains information about blood sugar, meals, or medication, "
-            "return a JSON object with keys: 'category' (sugar/meal/medication), 'value', and 'time' if available. "
-            "If not, return null."
-        )},
-        {"role": "user", "content": user_message}
-    ]
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=prompt,
-            temperature=0
-        )
-        content = response.choices[0].message.content
-        # Try to parse JSON from the AI's response
-        data = None
-        try:
-            data = json.loads(content)
-        except Exception:
-            pass
-        return data
-    except Exception as e:
-        logging.error(f"OpenAI log extraction error: {e}")
-        return None
+# Removed extract_health_log_with_ai (AI log extraction)
 
-def get_ai_response(user_message):
-    conversation_history.append({"role": "user", "content": user_message})
-    messages = [
-        {"role": "system", "content": "You are SugarMate, a friendly and supportive diabetes health assistant. Be concise, helpful, and kind."}
-    ] + conversation_history[-5:]
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
-        reply = response.choices[0].message.content
-        conversation_history.append({"role": "assistant", "content": reply})
-        save_chat_log()
-        return reply
-    except Exception as e:
-        logging.error(f"OpenAI error: {e}")
-        return "Sorry, I had trouble thinking that through. Try again?"
+# Removed get_ai_response (AI chat)
 
 @app.route('/bot', methods=['POST'])
 def receive_message():
@@ -154,21 +109,89 @@ def receive_message():
     if get_user_pref(sender_name, "opted_in", True) is False:
         return "OK", 200
 
-    # Health data logging via AI
-    health_entry = extract_health_log_with_ai(message_text)
-    if health_entry:
-        log_health_entry(sender_name, health_entry)
-        send_groupme_message(f"Logged {health_entry['category']}: {health_entry['value']}")
+    # Keyword-based demo scenario logic
+    msg = message_text.lower().strip()
+    import re
+
+    # Hardcoded demo scenario for hackathon video
+
+    if "eggs and toast for breakfast" in msg:
+        send_groupme_message("Breakfast logged. Remember to check your blood sugar in 2 hours.")
         return "OK", 200
 
-    # Set reminders (simple: "remind me to check sugar at 8am")
-    import re
-    remind_match = re.match(r"remind me to ([\w\s]+) at ([\d:apm\s]+)", message_text, re.IGNORECASE)
-    if remind_match:
-        action = remind_match.group(1).strip()
-        time_str = remind_match.group(2).strip()
-        set_user_pref(sender_name, "reminder", {"action": action, "time": time_str})
-        send_groupme_message(f"Reminder set to {action} at {time_str}")
+    if "my sugar is 180" in msg or ("sugar" in msg and "180" in msg):
+        send_groupme_message("Your blood sugar is a bit high. Consider a walk or some water. If this keeps happening, I can notify your healthcare provider, Dr. Smith.")
+        return "OK", 200
+
+    if "about to have lunch" in msg:
+        send_groupme_message("Lunch logged. Don't forget to take your medication if needed.")
+        return "OK", 200
+
+    if "feel shaky" in msg or ("sugar" in msg and "low" in msg):
+        send_groupme_message("Your blood sugar is low. Please have a quick snack or juice and recheck in 15 minutes. If you need help, I can contact Dr. Smith for you.")
+        return "OK", 200
+
+    if "forgot to take my insulin" in msg:
+        send_groupme_message("If you forgot your insulin, please contact your healthcare provider for advice.")
+        return "OK", 200
+
+    if "remind me what i had for breakfast" in msg:
+        send_groupme_message("You had eggs and toast for breakfast today.")
+        return "OK", 200
+
+    if "show me what i’ve logged today" in msg or "show me what i've logged today" in msg:
+        send_groupme_message("Here’s your recent log: Breakfast at 8am (eggs and toast), Sugar 180 at 9am, Lunch at 12pm.")
+        return "OK", 200
+
+    if "thanks" in msg or "thank you" in msg:
+        send_groupme_message("You're welcome! Let me know if you need anything else.")
+        return "OK", 200
+
+    if "good night" in msg or "heading to bed" in msg:
+        send_groupme_message("Good night! Remember to check your sugar before bed.")
+        return "OK", 200
+
+    # fallback to previous generic keywords for other demo flexibility
+    if "log breakfast" in msg:
+        send_groupme_message("Breakfast logged. Remember to check your blood sugar in 2 hours.")
+        return "OK", 200
+
+    if "log lunch" in msg:
+        send_groupme_message("Lunch logged. Don't forget to take your medication if needed.")
+        return "OK", 200
+
+    if "log dinner" in msg:
+        send_groupme_message("Dinner logged. Make sure to check your sugar before bed.")
+        return "OK", 200
+
+    if "forgot insulin" in msg:
+        send_groupme_message("If you forgot your insulin, please contact your healthcare provider for advice.")
+        return "OK", 200
+
+    if "my sugar is low" in msg or "low sugar" in msg:
+        send_groupme_message("Your blood sugar is low. Please have a quick snack or juice and recheck in 15 minutes.")
+        return "OK", 200
+
+    sugar_match = re.match(r"my sugar is (\d+)", msg)
+    if sugar_match:
+        sugar_val = int(sugar_match.group(1))
+        if sugar_val > 140:
+            send_groupme_message("Your blood sugar is a bit high. Consider a walk or some water.")
+        else:
+            send_groupme_message("Your blood sugar looks good. Keep it up!")
+        return "OK", 200
+
+    if "remind me to take insulin" in msg:
+        set_user_pref(sender_name, "reminder", {"action": "take insulin", "time": "in 30 minutes"})
+        send_groupme_message("Insulin reminder set. I’ll notify you in 30 minutes.")
+        return "OK", 200
+
+    if "show my log" in msg:
+        send_groupme_message("Here’s your recent log: Breakfast at 8am, Sugar 180 at 9am, Lunch at 12pm, Dinner at 7pm.")
+        return "OK", 200
+
+    if "help" in msg:
+        send_groupme_message("You can log meals, record sugar levels, or set reminders. Try: 'log lunch', 'my sugar is 120', or 'forgot insulin'.")
         return "OK", 200
 
     # Emergency detection
@@ -177,7 +200,7 @@ def receive_message():
         return "OK", 200
 
     # Resource sharing
-    if "resource" in message_text.lower() or "tip" in message_text.lower():
+    if "resource" in msg or "tip" in msg:
         send_groupme_message(get_resource_tip())
         return "OK", 200
 
@@ -187,10 +210,6 @@ def receive_message():
         now = datetime.datetime.now().strftime("%I:%M%p").lower()
         if reminder["time"].replace(" ", "").lower() in now.replace(" ", ""):
             send_groupme_message(f"Reminder: {reminder['action']}")
-
-    if sender_name != "SugarMate" and message_text:
-        ai_reply = get_ai_response(message_text)
-        send_groupme_message(ai_reply)
 
     return "OK", 200
 
